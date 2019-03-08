@@ -1,13 +1,19 @@
 import re
 
 
-def make_alphanumeric_for_filename(str):
+def get_year_from_span(string):
+    string = re.sub('[^0-9]', '', string)
+    string = string[0:4]
+
+    return string
+
+
+def make_alphanumeric_for_filename(title_string):
     # Deletes all special characters except for " -_"
-    str = re.sub('[^0-9a-zA-Z_ -]+', '', str)
+    title_string = re.sub('[ ]+', '_', title_string)
+    title_string = re.sub('[-]+', '_', title_string)
+    title_string = re.sub('[^0-9a-zA-Z_]+', '', title_string)
 
-    # Replaces " -_" with "_"
-    str = re.sub('[ -]+', '_', str)
+    title_string = title_string.lower()
 
-    str = str.lower()
-
-    return str
+    return title_string
