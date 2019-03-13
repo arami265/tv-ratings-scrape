@@ -1,9 +1,8 @@
 from time import sleep
-import json
 import util_string
 import util_requests
-
-import os
+import util_files
+import operator
 
 # Wait time for reconnecting, in seconds
 short_wait = 1
@@ -45,22 +44,35 @@ def scrape_shows_from_genre_pages(first_genre_page_url, number_of_pages):
             else:
                 year = ''
 
-            # if year != '':
-            #     year = year.replace('(', '')
-            #     year = year.replace(')', '')
-            #     year = year[0:4]
+            # If the year is null, ignore this file for now
+            if year == '':
+                print(title + ' skipped! Missing year info...')
+            else:
+                file_path = util_files.get_show_file_path(title, year)
+                print(title)
+                print(file_path)
+                print('Page ' + str(i) + ' #' + str(i0))
+                i0 = i0 + 1
 
-            file_name = '.\\shows\\' + title + '_' + year + '.json'
-            print(title)
-            print(file_name)
-            print('Page ' + str(i) + ' #' + str(i0))
-            i0 = i0 + 1
+                # If the show doesn't have a file, create one
+                if util_files.does_file_exist(file_path) is False:
+                    show_data = get_show_dict_from_div(div)
 
-            if os.path.isfile(file_name) is False:
-                show = get_show_dict_from_div(div)
+                    util_files.write_new_file(file_path, show_data)
+                else:
+                    # Compare old/new objects to see if changes are made
+                    old_show_data = util_files.read_json_file(file_path)
 
-                with open(file_name, 'w') as outfile:
-                    json.dump(show, outfile)
+                    new_show_data = get_show_dict_from_div(div)
+
+                    # If there is no change between the current and new data
+                    if operator.eq(old_show_data, new_show_data):
+                        print('No change!')
+                    else:
+                        print('There was a change. File overwritten.')
+
+                        util_files.write_file(file_path, new_show_data)
+                    print()
 
         print()
         next_page_href = soup.find('a', {'class': 'lister-page-next next-page'})['href']
@@ -100,6 +112,9 @@ def get_show_dict_from_div(div):
     show_description = seasons_and_description['show_description']
     seasons = seasons_and_description['seasons']
 
+    if year == '':
+        year = None
+
     show = {
         'title': title,
         'show_url': show_url,
@@ -109,9 +124,6 @@ def get_show_dict_from_div(div):
         'seasons': seasons,
         'show_description': show_description
     }
-
-    print(title)
-    print()
 
     return show
 
