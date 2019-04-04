@@ -2,10 +2,12 @@ from time import sleep
 import util_string
 import util_requests
 import util_files
+import config
 import operator
+import datetime
 
 # Wait time for reconnecting, in seconds
-short_wait = 1
+short_wait = config.SHORT_WAIT
 
 
 def get_list_of_genre_urls(most_popular_url):
@@ -26,57 +28,73 @@ def scrape_shows_from_genre_pages(first_genre_page_url, number_of_pages):
     next_genre_url = first_genre_page_url
 
     for i in range(1, number_of_pages + 1):
-        # Gets the list of shows from IMDB
-        soup = util_requests.get_soup_from_url(next_genre_url)
+        if next_genre_url is None:
+            print('No more pages in this genre.')
+        else:
+            # Gets the list of shows from IMDB
+            soup = util_requests.get_soup_from_url(next_genre_url)
 
-        # Gets all the rows of the tbody containing all the shows
-        div_lister_items = soup.find_all('div', {'class': 'lister-item-content'})
+            # Gets all the rows of the tbody containing all the shows
+            div_lister_items = soup.find_all('div', {'class': 'lister-item-content'})
 
-        # Extract title, year, rating, and IMDB link from each show
-        i0 = 1
-        for div in div_lister_items:
-            title = div.h3.a.contents[0]
-            title = util_string.make_alphanumeric_for_filename(title)
-            span_year = div.h3.find("span", {'class': 'lister-item-year text-muted unbold'})
-            if span_year is not None and len(span_year.contents) > 0:
-                year = span_year.contents[0]
-                year = util_string.get_year_from_span(year)
-            else:
-                year = ''
-
-            # If the year is null, ignore this file for now
-            if year == '':
-                print(title + ' skipped! Missing year info...')
-            else:
-                file_path = util_files.get_show_file_path(title, year)
-                print(title)
-                print(file_path)
-                print('Page ' + str(i) + ' #' + str(i0))
-                i0 = i0 + 1
-
-                # If the show doesn't have a file, create one
-                if util_files.does_file_exist(file_path) is False:
-                    show_data = get_show_dict_from_div(div)
-
-                    util_files.write_new_file(file_path, show_data)
+            # Extract title, year, rating, and IMDB link from each show
+            i0 = 1
+            for div in div_lister_items:
+                title = div.h3.a.contents[0]
+                title = util_string.make_alphanumeric_for_filename(title)
+                span_year = div.h3.find("span", {'class': 'lister-item-year text-muted unbold'})
+                if span_year is not None and len(span_year.contents) > 0:
+                    year = span_year.contents[0]
+                    year = util_string.get_year_from_span(year)
                 else:
-                    # Compare old/new objects to see if changes are made
-                    old_show_data = util_files.read_json_file(file_path)
+                    year = ''
 
-                    new_show_data = get_show_dict_from_div(div)
+                # If the year is null, ignore this file for now
+                # Typically this is an upcoming show without any episodes
+                if year == '':
+                    print(title + ' skipped! Missing year info...')
+                else:
+                    file_path = util_files.get_show_file_path(title, year)
+                    print(title)
+                    print(file_path)
+                    print('Page ' + str(i) + ' #' + str(i0))
+                    i0 = i0 + 1
 
-                    # If there is no change between the current and new data
-                    if operator.eq(old_show_data, new_show_data):
-                        print('No change!')
+                    # If the show doesn't have a file, create one
+                    if util_files.does_file_exist(file_path) is False:
+                        show_data = get_show_dict_from_div(div)
+
+                        util_files.write_new_file(file_path, show_data)
                     else:
-                        print('There was a change. File overwritten.')
+                        # Check if enough time has passed to check the show for changes
+                        old_show_data = util_files.read_json_file(file_path)
+                        time_last_updated = datetime.datetime.strptime(old_show_data['time_last_updated'],
+                                                                       config.DATETIME_FORMAT)
+                        time_delta = datetime.datetime.now() - time_last_updated
 
-                        util_files.write_file(file_path, new_show_data)
-                    print()
+                        if time_delta.days >= config.DAYS_TO_WAIT:
+                            # Compare old/new objects to see if changes are made
+                            new_show_data = get_show_dict_from_div(div)
 
-        print()
-        next_page_href = soup.find('a', {'class': 'lister-page-next next-page'})['href']
-        next_genre_url = 'https://www.imdb.com' + next_page_href
+                            # If there is no change between the current and new data
+                            if operator.eq(old_show_data, new_show_data):
+                                print('No change!')
+                            else:
+                                print('There was a change. File overwritten.')
+
+                                util_files.write_file(file_path, new_show_data)
+                            print()
+                        else:
+                            print("Show was recently updated! Skipping...")
+                            print()
+
+            print()
+            a_next_page = soup.find('a', {'class': 'lister-page-next next-page'})
+            if a_next_page is not None:
+                next_page_href = soup.find('a', {'class': 'lister-page-next next-page'})['href']
+                next_genre_url = 'https://www.imdb.com' + next_page_href
+            else:
+                next_genre_url = None
 
 
 def get_show_dict_from_div(div):
@@ -115,6 +133,8 @@ def get_show_dict_from_div(div):
     if year == '':
         year = None
 
+    time_last_updated = datetime.datetime.now().strftime(config.DATETIME_FORMAT)
+
     show = {
         'title': title,
         'show_url': show_url,
@@ -122,7 +142,8 @@ def get_show_dict_from_div(div):
         'rating': rating,
         'votes': votes,
         'seasons': seasons,
-        'show_description': show_description
+        'show_description': show_description,
+        'time_last_updated': time_last_updated
     }
 
     return show
@@ -212,9 +233,13 @@ def get_seasons_and_description(show_url):
     sleep(short_wait)
     soup = util_requests.get_soup_from_url(show_url)
 
-    show_description = soup.find('div', {'class': 'summary_text'}).contents[0]
-    show_description = show_description.strip()
-    if show_description == '':
+    div_description = soup.find('div', {'class': 'summary_text'})
+    if div_description is not None:
+        show_description = div_description.contents[0]
+        show_description = show_description.strip()
+        if show_description == '':
+            show_description = None
+    else:
         show_description = None
 
     div_seasons_nav = soup.find('div', {'class': 'seasons-and-year-nav'})
@@ -230,7 +255,6 @@ def get_seasons_and_description(show_url):
         # Note that these links are initially in reverse order
         a_season_links = div_seasons.find_all('a')
         season_urls = []
-        print('Length of links: ' + str(len(a_season_links)))
         for a in a_season_links:
             season_urls.append("https://www.imdb.com" + a["href"])
         season_urls.reverse()

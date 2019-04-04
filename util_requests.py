@@ -2,9 +2,10 @@ from time import sleep
 
 import requests
 from bs4 import BeautifulSoup
+import config
 
 # Wait time if connection refused
-long_wait = 60
+long_wait = config.LONG_WAIT
 
 
 def get_soup_from_url(url):

@@ -13,6 +13,7 @@ def make_alphanumeric_for_filename(title_string):
     title_string = re.sub('[ ]+', '_', title_string)
     title_string = re.sub('[-]+', '_', title_string)
     title_string = re.sub('[^0-9a-zA-Z_]+', '', title_string)
+    title_string = re.sub('[_]+', '_', title_string)
 
     title_string = title_string.lower()
 
