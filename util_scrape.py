@@ -23,11 +23,12 @@ def get_list_of_genre_urls(most_popular_url):
     return genre_url_list
 
 
-def scrape_shows_from_genre_pages(first_genre_page_url, number_of_pages):
+def scrape_shows_from_genre_pages(genre_url):
+    # First the "next URL" is set to the initial genre URL to scrape
     global next_genre_url
-    next_genre_url = first_genre_page_url
+    next_genre_url = genre_url
 
-    for i in range(1, number_of_pages + 1):
+    for i in range(1, config.PAGES_PER_GENRE + 1):
         if next_genre_url is None:
             print('No more pages in this genre.')
         else:
@@ -65,6 +66,8 @@ def scrape_shows_from_genre_pages(first_genre_page_url, number_of_pages):
                         show_data = get_show_dict_from_div(div)
 
                         util_files.write_new_file(file_path, show_data)
+                        print('New file written.')
+                        print()
                     else:
                         # Check if enough time has passed to check the show for changes
                         old_show_data = util_files.read_json_file(file_path)
@@ -72,7 +75,7 @@ def scrape_shows_from_genre_pages(first_genre_page_url, number_of_pages):
                                                                        config.DATETIME_FORMAT)
                         time_delta = datetime.datetime.now() - time_last_updated
 
-                        if time_delta.days >= config.DAYS_TO_WAIT:
+                        if time_delta.days >= config.DAYS_TO_WAIT_BEFORE_UPDATE:
                             # Compare old/new objects to see if changes are made
                             new_show_data = get_show_dict_from_div(div)
 
@@ -80,13 +83,11 @@ def scrape_shows_from_genre_pages(first_genre_page_url, number_of_pages):
                             if operator.eq(old_show_data, new_show_data):
                                 print('No change!')
                             else:
-                                print('There was a change. File overwritten.')
-
                                 util_files.write_file(file_path, new_show_data)
-                            print()
+                                print('There was a change. File overwritten.')
                         else:
                             print("Show was recently updated! Skipping...")
-                            print()
+                        print()
 
             print()
             a_next_page = soup.find('a', {'class': 'lister-page-next next-page'})
@@ -314,71 +315,75 @@ def get_season_episodes(season_url):
     soup = util_requests.get_soup_from_url(season_url)
 
     # Lambda is used to filter only relevant divs that contain episode information
-    div_eplist = soup.find('div', {'class': 'list detail eplist'}).findChildren('div', {
-        'class': lambda s: 'list_item odd' in s or 'list_item even' in s}, recursive=False)
+    div_eplist = soup.find('div', {'class': 'list detail eplist'})
+    if div_eplist is None:
+        season_episodes = None
+    else:
+        div_list_items = div_eplist.findChildren('div', {
+            'class': lambda s: 'list_item odd' in s or 'list_item even' in s}, recursive=False)
 
-    season_episodes = []
-    print(season_url)
-    ep_number = 1
-    for div_list_item in div_eplist:
-        div_info = div_list_item.find('div', {'class': 'info'})
-        div_rating_widget = div_info.find('div', {'class': 'ipl-rating-widget'})
-        if div_rating_widget is not None:
-            div_rating = div_rating_widget.find('div',
-                                                {'class': 'ipl-rating-star small'})
-        else:
-            div_rating = None
+        season_episodes = []
+        print(season_url)
+        ep_number = 1
+        for div_list_item in div_list_items:
+            div_info = div_list_item.find('div', {'class': 'info'})
+            div_rating_widget = div_info.find('div', {'class': 'ipl-rating-widget'})
+            if div_rating_widget is not None:
+                div_rating = div_rating_widget.find('div',
+                                                    {'class': 'ipl-rating-star small'})
+            else:
+                div_rating = None
 
-        if div_rating is not None:
-            span_rating = div_rating.find('span', {
-                'class': 'ipl-rating-star__rating'})
-            if span_rating is not None:
-                rating = span_rating.contents[0]
+            if div_rating is not None:
+                span_rating = div_rating.find('span', {
+                    'class': 'ipl-rating-star__rating'})
+                if span_rating is not None:
+                    rating = span_rating.contents[0]
+                else:
+                    rating = None
+
+                span_totalvotes = div_rating.find('span', {
+                    'class': 'ipl-rating-star__total-votes'})
+                if span_totalvotes is not None:
+                    totalvotes = span_totalvotes.contents[0]
+                    totalvotes = totalvotes.replace('(', '')
+                    totalvotes = totalvotes.replace(')', '')
+                else:
+                    totalvotes = None
             else:
                 rating = None
-
-            span_totalvotes = div_rating.find('span', {
-                'class': 'ipl-rating-star__total-votes'})
-            if span_totalvotes is not None:
-                totalvotes = span_totalvotes.contents[0]
-                totalvotes = totalvotes.replace('(', '')
-                totalvotes = totalvotes.replace(')', '')
-            else:
                 totalvotes = None
-        else:
-            rating = None
-            totalvotes = None
 
-        name = div_info.strong.a.contents[0]
-        href = 'https://www.imdb.com' + div_info.strong.a['href']
+            name = div_info.strong.a.contents[0]
+            href = 'https://www.imdb.com' + div_info.strong.a['href']
 
-        airdate = div_info.find('div', {'class': 'airdate'}).contents[0]
-        airdate = airdate.strip()
-        if airdate == '':
-            airdate = None
+            airdate = div_info.find('div', {'class': 'airdate'}).contents[0]
+            airdate = airdate.strip()
+            if airdate == '':
+                airdate = None
 
-        ep_description = div_info.find('div', {'class': 'item_description'}).contents[0]
-        ep_description = ep_description.strip()
-        if ep_description == 'Know what this is about?':
-            ep_description = None
+            ep_description = div_info.find('div', {'class': 'item_description'}).contents[0]
+            ep_description = ep_description.strip()
+            if ep_description == 'Know what this is about?':
+                ep_description = None
 
-        print(name)
-        print(airdate)
-        print(rating)
-        print(totalvotes)
-        print(ep_description)
+            # print(name)
+            # print(airdate)
+            # print(rating)
+            # print(totalvotes)
+            # print(ep_description)
 
-        episode = {
-            'ep_number': ep_number,
-            'name': name,
-            'ep_url': href,
-            'airdate': airdate,
-            'rating': rating,
-            'totalvotes': totalvotes,
-            'ep_description': ep_description
-        }
-        season_episodes.append(episode)
-        ep_number = ep_number + 1
+            episode = {
+                'ep_number': ep_number,
+                'name': name,
+                'ep_url': href,
+                'airdate': airdate,
+                'rating': rating,
+                'totalvotes': totalvotes,
+                'ep_description': ep_description
+            }
+            season_episodes.append(episode)
+            ep_number = ep_number + 1
 
     print()
     return season_episodes

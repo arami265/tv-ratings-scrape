@@ -8,5 +8,5 @@ i = 1
 for url in genre_urls:
     print('Genre ' + str(i) + '/' + str(len(genre_urls)))
     print(url)
-    util_scrape.scrape_shows_from_genre_pages(url, pages_per_genre)
+    util_scrape.scrape_shows_from_genre_pages(url)
     i = i + 1
