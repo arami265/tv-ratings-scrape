@@ -5,7 +5,7 @@ PAGES_PER_GENRE = 5
 GENRE_LIST_URL = 'https://www.imdb.com/chart/tvmeter?ref_=nv_tvv_mptv'
 
 # Seconds to wait when making a series of HTTP requests; this is to avoid being refused a connection
-SHORT_WAIT = 1
+SHORT_WAIT = 2
 
 # Seconds to wait after being refused a connection
 LONG_WAIT = 45

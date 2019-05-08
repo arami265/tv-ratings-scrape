@@ -76,14 +76,21 @@ def scrape_shows_from_genre_pages(genre_url):
                         time_delta = datetime.datetime.now() - time_last_updated
 
                         if time_delta.days >= config.DAYS_TO_WAIT_BEFORE_UPDATE:
-                            # Compare old/new objects to see if changes are made
+                            # We will compare old/new objects to see if changes are made
                             new_show_data = get_show_dict_from_div(div)
+
+                            # time_last_updated is removed for now because it is not
+                            # a consideration for whether the data is changed
+                            new_show_data_copy = new_show_data.copy()
+
+                            new_show_data.pop('time_last_updated')
+                            old_show_data.pop('time_last_updated')
 
                             # If there is no change between the current and new data
                             if operator.eq(old_show_data, new_show_data):
                                 print('No change!')
                             else:
-                                util_files.write_file(file_path, new_show_data)
+                                util_files.write_file(file_path, new_show_data_copy)
                                 print('There was a change. File overwritten.')
                         else:
                             print("Show was recently updated! Skipping...")
