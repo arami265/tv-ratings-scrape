@@ -15,7 +15,7 @@ def get_soup_from_url(url):
         try:
             page = requests.get(url)
         except requests.exceptions.RequestException:
-            print("Connection refused.\nWaiting " + str(config.LONG_WAIT) + " seconds...")
+            print("Connection refused.\nWaiting " + str(long_wait) + " seconds...")
             connection_made = False
             sleep(long_wait)
         else:
